@@ -13,9 +13,13 @@ export default function Amenities({ user, setPage }) {
   useEffect(() => {
     if(date && facility) {
       const fetchSlots = async () => {
-        const q = query(collection(db, "bookings"), where("date", "==", date), where("facility", "==", facility));
-        const snap = await getDocs(q);
-        setBusySlots(snap.docs.map(d => d.data()));
+        try {
+          const q = query(collection(db, "bookings"), where("date", "==", date), where("facility", "==", facility));
+          const snap = await getDocs(q);
+          setBusySlots(snap.docs.map(d => d.data()));
+        } catch (err) {
+          console.error("Error fetching slots:", err);
+        }
       };
       fetchSlots();
     }
@@ -35,16 +39,32 @@ export default function Amenities({ user, setPage }) {
       return;
     }
 
-    await addDoc(collection(db, "bookings"), {
-      user: user.name,
-      email: user.email,
-      facility,
-      date,
-      startTime,
-      endTime
-    });
-    alert("✅ Booking Confirmed!");
-    setPage('dashboard');
+    try {
+      const userEmail = user?.email || (user?.role === 'secretary' ? 'admin@society.com' : (user?.name ? `${user.name.toLowerCase().replace(/\s+/g, '')}@society.com` : "resident@society.com"));
+      const userName = user?.name || "Resident";
+
+      const bookingData = {
+        user: userName,
+        email: userEmail,
+        facility: facility || "Clubhouse",
+        date,
+        startTime,
+        endTime,
+        createdAt: new Date().toISOString()
+      };
+
+      // Strip out any undefined fields so Firestore doesn't reject the payload
+      const cleanedData = Object.fromEntries(
+        Object.entries(bookingData).filter(([_, v]) => v !== undefined)
+      );
+
+      await addDoc(collection(db, "bookings"), cleanedData);
+      alert("✅ Booking Confirmed!");
+      setPage('dashboard');
+    } catch (error) {
+      console.error("Error booking amenity:", error);
+      alert("Error confirming booking: " + error.message);
+    }
   };
 
   return (

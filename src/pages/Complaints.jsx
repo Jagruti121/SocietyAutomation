@@ -25,15 +25,23 @@ export default function Complaints({ user, setPage }) {
     if (!title || !desc) return;
 
     try {
-      await addDoc(collection(db, "complaints"), {
-        email: user.email,
+      const userEmail = user?.email || (user?.role === 'secretary' ? 'admin@society.com' : 'resident@society.com');
+      const complaintData = {
+        email: userEmail,
+        userName: user?.name || "Resident",
         title,
         text: desc,
-        imageUrl: attachment, // Store the image string
+        imageUrl: attachment || "", // Store the image string
         voteCount: 0,
         date: new Date().toISOString(),
         status: "Pending"
-      });
+      };
+
+      const cleanedData = Object.fromEntries(
+        Object.entries(complaintData).filter(([_, v]) => v !== undefined)
+      );
+
+      await addDoc(collection(db, "complaints"), cleanedData);
       
       alert("Complaint Raised Successfully!");
       setPage('dashboard');

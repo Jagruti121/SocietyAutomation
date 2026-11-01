@@ -11,7 +11,15 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        const parsed = JSON.parse(storedUser);
+        if (parsed && !parsed.email) {
+          parsed.email = parsed.role === 'secretary' ? 'admin@society.com' : 'resident@society.com';
+        }
+        setUser(parsed);
+      } catch (err) {
+        console.error("Error reading stored user:", err);
+      }
     }
     setLoading(false);
   }, []);

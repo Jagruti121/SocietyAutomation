@@ -26,7 +26,7 @@ export default function Login() {
   const handleAdminLogin = (e) => {
     e.preventDefault();
     if (adminUser === 'admin' && adminPass === 'admin@123') {
-      login({ role: 'secretary', name: 'Secretary', uid: 'admin' });
+      login({ role: 'secretary', name: 'Secretary', email: 'admin@society.com', uid: 'admin' });
     } else {
       alert("Invalid Admin Credentials");
     }

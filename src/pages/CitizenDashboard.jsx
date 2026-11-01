@@ -1,6 +1,6 @@
 // // import React, { useState, useEffect } from 'react';
 // // import { db } from '../firebase';
-// // import { collection, query, orderBy, getDocs, updateDoc, doc } from 'firebase/firestore';
+// // import { collection, query, orderBy, getDocs, updateDoc, doc, onSnapshot } from 'firebase/firestore';
 // // import { ThumbsUp, ThumbsDown, Calendar, Megaphone, AlertTriangle, X, User } from 'lucide-react';
 // // import '../App.css';
 
@@ -181,7 +181,7 @@
 
 // import React, { useState, useEffect } from 'react';
 // import { db } from '../firebase';
-// import { collection, query, orderBy, getDocs, updateDoc, doc } from 'firebase/firestore';
+// import { collection, query, orderBy, getDocs, updateDoc, doc, onSnapshot } from 'firebase/firestore';
 // import { ThumbsUp, ThumbsDown, Calendar, Megaphone, AlertTriangle, X, User, MessageSquare, Send } from 'lucide-react';
 // import '../App.css';
 
@@ -490,7 +490,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../firebase';
-import { collection, query, orderBy, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, updateDoc, doc, onSnapshot } from 'firebase/firestore';
 import { ThumbsUp, ThumbsDown, Calendar, Megaphone, AlertTriangle, X, User, MessageSquare, Send, ChevronRight, ChevronLeft } from 'lucide-react';
 import '../App.css';
 
@@ -518,16 +518,33 @@ export default function CitizenDashboard({ user, setPage }) {
   };
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchInitialData = async () => {
       await fetchNotices();
       const complaintSnap = await getDocs(query(collection(db, "complaints"), orderBy("voteCount", "desc")));
       const allComplaints = complaintSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setComplaints(allComplaints.filter(c => c.status !== 'Resolved'));
-
-      const bookingSnap = await getDocs(query(collection(db, "bookings"), orderBy("date")));
-      setBookings(bookingSnap.docs.filter(b => new Date(b.data().date) >= new Date()).map(d => d.data()));
     };
-    fetchData();
+    fetchInitialData();
+
+    // Real-time bookings: Show today and future dates, sorted by date and timing
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const unsub = onSnapshot(query(collection(db, "bookings")), (snap) => {
+      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const upcoming = all
+        .filter(b => b.date && b.date >= todayStr)
+        .sort((a, b) => {
+          const dComp = a.date.localeCompare(b.date);
+          if (dComp !== 0) return dComp;
+          const tA = a.startTime || a.time || "";
+          const tB = b.startTime || b.time || "";
+          return tA.localeCompare(tB);
+        });
+      setBookings(upcoming);
+    });
+
+    return () => unsub();
   }, []);
 
   const handleVote = async (id, currentVotes, type) => {
@@ -849,23 +866,27 @@ export default function CitizenDashboard({ user, setPage }) {
               <h3><Calendar className="icon" /> Amenities Schedule</h3>
               <button className="btn-secondary" onClick={() => setPage('amenities')}>Book Now</button>
             </div>
-            <div className="card-content">
-              {bookings.map((b, i) => (
-                <div key={i} className="booking-item">
-                  <div className="booking-date">
-                    <span className="day">{new Date(b.date).getDate()}</span>
-                    <span className="month">{new Date(b.date).toLocaleString('default', { month: 'short' })}</span>
-                  </div>
-                  <div className="booking-details">
-                    <strong>{b.facility}</strong>
-                    <p>{b.startTime} - {b.endTime}</p>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '5px', color: '#64748b', fontSize: '0.85rem' }}>
-                        <User size={14} />
-                        <span>Booked by: <b>{b.user || b.email}</b></span>
+            <div className="card-content" style={{ maxHeight: '420px', overflowY: 'auto', paddingRight: '5px' }}>
+              {bookings.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#94a3b8', padding: '20px' }}>No upcoming bookings scheduled.</p>
+              ) : (
+                bookings.map((b, i) => (
+                  <div key={b.id || i} className="booking-item">
+                    <div className="booking-date">
+                      <span className="day">{new Date(b.date).getDate()}</span>
+                      <span className="month">{new Date(b.date).toLocaleString('default', { month: 'short' })}</span>
+                    </div>
+                    <div className="booking-details">
+                      <strong>{b.facility}</strong>
+                      <p>{b.startTime && b.endTime ? `${b.startTime} - ${b.endTime}` : (b.time || "-")}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '5px', color: '#64748b', fontSize: '0.85rem' }}>
+                          <User size={14} />
+                          <span>Booked by: <b>{b.user || b.email}</b></span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
